@@ -13,8 +13,13 @@ const Login = (props) => {
   const navigate = useNavigate();
 
   const onButtonClick = () => {
-    login()
-      .then(() => {
+    const payload = {
+      userId: email,
+      password: password
+    }
+    login(payload)
+      .then((data) => {
+        sessionStorage.setItem('userInfo',JSON.stringify(data))
         navigate('/home');
       })
       .catch(() => {
@@ -31,7 +36,7 @@ const Login = (props) => {
       <div className={'inputContainer'}>
         <input
           value={email}
-          placeholder="Enter your email here"
+          placeholder="Enter your username here"
           onChange={(ev) => setEmail(ev.target.value)}
           className={'inputBox'}
         />

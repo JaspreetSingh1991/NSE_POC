@@ -4,32 +4,25 @@ import {
   Button,
   createTheme,
   Grid2,
+  Tab,
+  Tabs,
   Toolbar,
-  Typography,
 } from '@mui/material';
 import './App.css';
 
 import { DataGrid } from '@mui/x-data-grid';
 import { ThemeProvider } from '@emotion/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getTasksList } from './services/tasks';
 
 const columns = [
-  { field: 'id', headerName: 'ID', width: 70 },
-  { field: 'firstName', headerName: 'First name', width: 130 },
-  { field: 'lastName', headerName: 'Last name', width: 130 },
+  { field: 'scriptId', headerName: 'Script ID', width: 200 },
+  { field: 'scriptCmd', headerName: 'Script Command', width: 230 },
+  { field: 'createdBy', headerName: 'Created By', width: 230 },
   {
-    field: 'age',
-    headerName: 'Age',
-    type: 'number',
-    width: 90,
-  },
-  {
-    field: 'fullName',
-    headerName: 'Full name',
-    description: 'This column has a value getter and is not sortable.',
-    sortable: false,
-    width: 160,
-    valueGetter: (value, row) => `${row.firstName || ''} ${row.lastName || ''}`,
+    field: 'status',
+    headerName: 'Status',
+    width: 230,
   },
 ];
 
@@ -55,12 +48,38 @@ const darkTheme = createTheme({
   },
 });
 
-function appBarLabel(rowSelectionModel) {
+function appBarLabel(rowSelectionModel, selectedTab, tasks, fetchTaskList) {
   const sendForApproval = () => {
-    console.log(rowSelectionModel)
+    let tasksSelected = tasks.maker?.filter(
+      (task) => rowSelectionModel.indexOf(task.id) !== -1
+    );
+    const payload = tasksSelected.map((task) => {
+      const modfiedTask = {
+        isApproved: true,
+        scriptId: task.scriptId,
+        isRun: task.isRun,
+      };
+      return modfiedTask;
+    });
+    fetchTaskList();
+    console.log(payload);
   };
 
-  const approveTasks = () => {};
+  const approveTasks = () => {
+    let tasksSelected = tasks.maker?.filter(
+      (task) => rowSelectionModel.indexOf(task.id) !== -1
+    );
+    const payload = tasksSelected.map((task) => {
+      const modfiedTask = {
+        isApproved: true,
+        scriptId: task.scriptId,
+        isRun: true,
+      };
+      return modfiedTask;
+    });
+    fetchTaskList();
+    console.log(payload);
+  };
   return (
     <Toolbar
       sx={{
@@ -75,6 +94,7 @@ function appBarLabel(rowSelectionModel) {
             sx={{ color: 'black', borderColor: 'black' }}
             variant="outlined"
             onClick={sendForApproval}
+            disabled={selectedTab !== 0 || rowSelectionModel.length === 0}
           >
             Send For Approval
           </Button>
@@ -84,6 +104,7 @@ function appBarLabel(rowSelectionModel) {
             sx={{ color: 'black', borderColor: 'black' }}
             variant="outlined"
             onClick={approveTasks}
+            disabled={selectedTab !== 1 || rowSelectionModel.length === 0}
           >
             Approve
           </Button>
@@ -93,33 +114,136 @@ function appBarLabel(rowSelectionModel) {
   );
 }
 
+function a11yProps(index) {
+  return {
+    id: `simple-tab-${index}`,
+    'aria-controls': `simple-tabpanel-${index}`,
+  };
+}
+
+function CustomTabPanel(props) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`simple-tabpanel-${index}`}
+      aria-labelledby={`simple-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
 function App() {
-  const [rowSelectionModel, setRowSelectionModel] =
-    useState([]);
+  const [rowSelectionModel, setRowSelectionModel] = useState([]);
+  const [approverSelectionModel, setApproverSelectionModel] = useState([]);
+  const [value, setValue] = useState(0);
+  const userInfo = JSON.parse(sessionStorage.getItem('userInfo'));
+  const [tasks, setTasks] = useState({ maker: [], approver: [] });
+
+  useEffect(() => {
+    const userInfo = JSON.parse(sessionStorage.getItem('userInfo'));
+    const defaultTab =
+      userInfo?.userType === '0' ? 0 : userInfo?.userType === '1' ? 1 : 0;
+    setValue(defaultTab);
+    // getTasksList().then((data)=>{
+    //   console.log(data)
+    // })
+    fetchTaskList();
+  }, []);
+
+  const handleChange = (event, newValue) => {
+    setValue(newValue);
+  };
+
+  const fetchTaskList = () => {
+    let tasks = getTasksList();
+    const makerTasks = tasks?.maker?.map((task) => {
+      task.status =
+        task.isApproved === true && task.isRun == true
+          ? 'Running'
+          : task.isApproved === true && task.isRun == false
+          ? 'Pending Approval'
+          : 'New';
+      task.id = task.scriptId;
+      return task;
+    });
+    const approverTasks = tasks?.approver?.map((task) => {
+      task.status =
+        task.isApproved === true && task.isRun == true
+          ? 'Running'
+          : task.isApproved === true && task.isRun == false
+          ? 'Pending Approval'
+          : 'New';
+      task.id = task.scriptId;
+      return task;
+    });
+    setTasks({ maker: makerTasks, approver: approverTasks });
+  };
+
   return (
     <div className="App">
       <header className="App-header">Tasks List</header>
       <ThemeProvider theme={darkTheme}>
         <AppBar position="static" color="primary">
-          {appBarLabel(rowSelectionModel)}
+          {appBarLabel(rowSelectionModel, value, tasks, fetchTaskList)}
         </AppBar>
       </ThemeProvider>
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        initialState={{
-          pagination: {
-            paginationModel: { page: 0, pageSize: 20 },
-          },
-        }}
-        pageSizeOptions={[5, 10]}
-        checkboxSelection
-        onRowSelectionModelChange={(newRowSelectionModel) => {
-          setRowSelectionModel(newRowSelectionModel);
-        }}
-        rowSelectionModel={rowSelectionModel}
-        sx={{ overflow: 'clip' }}
-      />
+      <Box
+        sx={{ borderBottom: 1, borderColor: 'divider', paddingLeft: '10px' }}
+      >
+        <Tabs
+          value={value}
+          onChange={handleChange}
+          TabIndicatorProps={{ style: { background: 'black', color: 'black' } }}
+        >
+          {(userInfo?.userType === 0 || userInfo?.userType === 2) && (
+            <Tab label="Maker" {...a11yProps(0)} />
+          )}
+          {(userInfo?.userType === 1 || userInfo?.userType === 2) && (
+            <Tab label="Approver" {...a11yProps(1)} />
+          )}
+        </Tabs>
+      </Box>
+      <CustomTabPanel value={value} index={0}>
+        <DataGrid
+          rows={tasks.maker}
+          columns={columns}
+          initialState={{
+            pagination: {
+              paginationModel: { page: 0, pageSize: 20 },
+            },
+          }}
+          pageSizeOptions={[5, 10]}
+          checkboxSelection
+          onRowSelectionModelChange={(newRowSelectionModel) => {
+            setRowSelectionModel(newRowSelectionModel);
+          }}
+          rowSelectionModel={rowSelectionModel}
+          sx={{ overflow: 'clip' }}
+        />
+      </CustomTabPanel>
+      <CustomTabPanel value={value} index={1}>
+        <DataGrid
+          rows={tasks.approver}
+          columns={columns}
+          initialState={{
+            pagination: {
+              paginationModel: { page: 0, pageSize: 20 },
+            },
+          }}
+          pageSizeOptions={[5, 10]}
+          checkboxSelection
+          onRowSelectionModelChange={(newRowSelectionModel) => {
+            setApproverSelectionModel(newRowSelectionModel);
+          }}
+          rowSelectionModel={approverSelectionModel}
+          sx={{ overflow: 'clip' }}
+        />
+      </CustomTabPanel>
     </div>
   );
 }
